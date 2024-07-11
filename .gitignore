@@ -1,2 +1,4 @@
 .venv
 *.geojson
+resource
+*.html
