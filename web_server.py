@@ -1,6 +1,6 @@
 import http.server, socketserver, threading
 import folium, folium.plugins
-import gpsd, time, geojson
+import gpsd, time, geojson, os
 from pathlib import Path
 from logging import basicConfig, getLogger, DEBUG
 
@@ -25,8 +25,13 @@ folium.Map.default_css = [
         ('awesome_rotate_css', css_path + 'leaflet.awesome.rotate.min.css')
     ]
 
+rt_path = './resource/folium/'
+folium.plugins.Realtime.default_js = [
+        ('realtime', rt_path + 'leaflet-realtime.js'),
+    ]
+
 m = folium.Map(location=[35.657697326255445, 139.54156078942492]
-               , tiles='./resources/raster_tiles/{z}/{x}/{y}.png'
+               , tiles='./resource/raster_tiles/{z}/{x}/{y}.png'
                , attr='My Data Attribution'
                , zoom_start=17)
 rt = folium.plugins.Realtime(
@@ -35,6 +40,7 @@ rt = folium.plugins.Realtime(
     point_to_layer=folium.JsCode("(f, latlng) => { return L.circleMarker(latlng, {radius: 8, fillOpacity: 0.2})}"),
     interval=1000,
 )
+
 rt.add_to(m)
 m.save('index.html')
 
@@ -49,6 +55,9 @@ def run_geojson_server():
     except:
         logger.error("gpsd connection failed")
         return
+
+    if GEOJSON_FILE.exists():
+        os.remove(GEOJSON_FILE)
 
     while True:
         packet = gpsd.get_current()
