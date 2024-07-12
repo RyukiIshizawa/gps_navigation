@@ -1,11 +1,18 @@
 import http.server, socketserver, threading
 import folium, folium.plugins
-import gpsd, time, geojson, os
+import gpsd, time, geojson, os, argparse
 from pathlib import Path
 from logging import basicConfig, getLogger, DEBUG
 
 basicConfig(level=DEBUG)
 logger = getLogger(__name__)
+
+parser = argparse.ArgumentParser(description='Create a web server for GPS data visualization')
+
+parser.add_argument('-h', '--history', type=int, help='History size')
+parser.add_argument('-p', '--port', type=int, help='Web server port')
+
+args = parser.parse_args()
 
 js_path = './resource/folium/'
 folium.Map.default_js = [
@@ -36,7 +43,6 @@ m = folium.Map(location=[35.657697326255445, 139.54156078942492]
                , zoom_start=17)
 rt = folium.plugins.Realtime(
     "./resource/gpsd.geojson",
-    get_feature_id=folium.JsCode("(f) => { return f.properties.objectid; }"),
     point_to_layer=folium.JsCode("(f, latlng) => { return L.circleMarker(latlng, {radius: 8, fillOpacity: 0.2})}"),
     interval=1000,
 )
@@ -44,7 +50,7 @@ rt = folium.plugins.Realtime(
 rt.add_to(m)
 m.save('index.html')
 
-HISTORY_SIZE = 1
+HISTORY_SIZE = args.history
 GEOJSON_FILE = Path('resource/gpsd.geojson')
 
 def run_geojson_server():
@@ -61,7 +67,7 @@ def run_geojson_server():
 
     while True:
         packet = gpsd.get_current()
-        lon, lat = packet.position()
+        lat, lon = packet.position()
         t = packet.get_time()
         logger.info(f"lon: {lon}, lat: {lat}, time: {t}")
         
@@ -73,7 +79,7 @@ def run_geojson_server():
             geo = geojson.FeatureCollection([])
         
         # Add a new point
-        geo['features'].append(geojson.Feature(geometry=geojson.Point((lon, lat)), properties={'time': t}))
+        geo['features'].append(geojson.Feature(geometry=geojson.Point((lon, lat))))
 
         # Trim the history
         if len(geo['features']) > HISTORY_SIZE:
@@ -88,7 +94,7 @@ def run_geojson_server():
 th = threading.Thread(target=run_geojson_server)
 th.start()
 
-PORT = 8000
+PORT = args.port
 Handler = http.server.SimpleHTTPRequestHandler
 
 with socketserver.TCPServer(("", PORT), Handler) as httpd:
